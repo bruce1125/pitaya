@@ -21,6 +21,9 @@
 package pitaya
 
 import (
+	"ccg/src/pb"
+	"reflect"
+
 	"github.com/topfreegames/pitaya/v2/cluster"
 	"github.com/topfreegames/pitaya/v2/constants"
 	"github.com/topfreegames/pitaya/v2/logger"
@@ -31,6 +34,14 @@ import (
 // SendPushToUsers sends a message to the given list of users
 func (app *App) SendPushToUsers(route string, v interface{}, uids []string, frontendType string) ([]string, error) {
 	data, err := util.SerializeOrRaw(app.serializer, v)
+	if err != nil {
+		return uids, err
+	}
+	v = &pb.TcgMsg{
+		LogicType: reflect.TypeOf(v).Elem().Name(),
+		LogicData: data,
+	}
+	data, err = util.SerializeOrRaw(app.serializer, v)
 	if err != nil {
 		return uids, err
 	}

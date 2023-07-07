@@ -21,11 +21,13 @@
 package agent
 
 import (
+	"ccg/src/pb"
 	"context"
 	gojson "encoding/json"
 	e "errors"
 	"fmt"
 	"net"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -293,15 +295,23 @@ func (a *agentImpl) Push(route string, v interface{}) error {
 	if a.GetStatus() == constants.StatusClosed {
 		return errors.NewError(constants.ErrBrokenPipe, errors.ErrClientClosedRequest)
 	}
-
 	switch d := v.(type) {
 	case []byte:
 		logger.Log.Debugf("Type=Push, ID=%d, UID=%s, Route=%s, Data=%dbytes",
 			a.Session.ID(), a.Session.UID(), route, len(d))
 	default:
+		bb, err := util.SerializeOrRaw(a.serializer, v)
+		if err != nil {
+			return err
+		}
+		v = &pb.TcgMsg{
+			LogicType: reflect.TypeOf(v).Elem().Name(),
+			LogicData: bb,
+		}
 		logger.Log.Debugf("Type=Push, ID=%d, UID=%s, Route=%s, Data=%+v",
 			a.Session.ID(), a.Session.UID(), route, v)
 	}
+
 	return a.send(pendingMessage{typ: message.Push, route: route, payload: v})
 }
 
@@ -316,9 +326,9 @@ func (a *agentImpl) ResponseMID(ctx context.Context, mid uint, v interface{}, is
 		return errors.NewError(constants.ErrBrokenPipe, errors.ErrClientClosedRequest)
 	}
 
-	if mid <= 0 {
-		return constants.ErrSessionOnNotify
-	}
+	// if mid <= 0 {
+	// 	return constants.ErrSessionOnNotify
+	// }
 
 	switch d := v.(type) {
 	case []byte:
@@ -446,7 +456,7 @@ func (a *agentImpl) heartbeat() {
 
 			// chSend is never closed so we need this to don't block if agent is already closed
 			select {
-			case a.chSend <- pendingWrite{data: hbd}:
+			// case a.chSend <- pendingWrite{data: hbd}:
 			case <-a.chDie:
 				return
 			case <-a.chStopHeartbeat:
