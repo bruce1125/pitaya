@@ -62,6 +62,7 @@ type RemoteService struct {
 	messageEncoder         message.Encoder
 	server                 *cluster.Server // server obj
 	remoteBindingListeners []cluster.RemoteBindingListener
+	remoteClosedListeners  []cluster.RemoteClosedListener
 	sessionPool            session.SessionPool
 	handlerPool            *HandlerPool
 	remotes                map[string]*component.Remote // all remote method
@@ -92,6 +93,7 @@ func NewRemoteService(
 		messageEncoder:         messageEncoder,
 		server:                 server,
 		remoteBindingListeners: make([]cluster.RemoteBindingListener, 0),
+		remoteClosedListeners:  make([]cluster.RemoteClosedListener, 0),
 		sessionPool:            sessionPool,
 		handlerPool:            handlerPool,
 		remotes:                make(map[string]*component.Remote),
@@ -497,4 +499,18 @@ func (r *RemoteService) Docs(getPtrNames bool) (map[string]interface{}, error) {
 		return map[string]interface{}{}, nil
 	}
 	return docgenerator.RemotesDocs(r.server.Type, r.services, getPtrNames)
+}
+
+// AddRemoteBindingListener adds a listener
+func (r *RemoteService) AddRemoteClosedListener(listener cluster.RemoteClosedListener) {
+	r.remoteClosedListeners = append(r.remoteClosedListeners, listener)
+}
+
+// SessionClosed receive a session closed event for backend server
+func (r *RemoteService) SessionClosed(ctx context.Context, close *protos.CloseMsg) (*protos.CloseAnswer, error) {
+	logger.Log.Debugf("receive a session closed event.SID=%s, serverId=%s", close.GetUserId(), r.server.ID)
+	for _, r := range r.remoteClosedListeners {
+		r.OnFrontendSessionClosed(close.GetUserId())
+	}
+	return &protos.CloseAnswer{}, nil
 }

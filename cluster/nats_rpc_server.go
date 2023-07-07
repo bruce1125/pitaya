@@ -52,6 +52,7 @@ type NatsRPCServer struct {
 	stopChan               chan bool
 	subChan                chan *nats.Msg // subChan is the channel used by the server to receive network messages addressed to itself
 	bindingsChan           chan *nats.Msg // bindingsChan receives notify from other servers on every user bind to session
+	closedChan             chan *nats.Msg // closedChan receives notify from other servers on every user session closed
 	unhandledReqCh         chan *protos.Request
 	responses              []*protos.Response
 	requests               []*protos.Request
@@ -108,6 +109,7 @@ func (ns *NatsRPCServer) configure(config config.NatsRPCServerConfig) error {
 	}
 	ns.subChan = make(chan *nats.Msg, ns.messagesBufferSize)
 	ns.bindingsChan = make(chan *nats.Msg, ns.messagesBufferSize)
+	ns.closedChan = make(chan *nats.Msg, ns.messagesBufferSize)
 	// the reason this channel is buffered is that we can achieve more performance by not
 	// blocking producers on a massive push
 	ns.userPushCh = make(chan *protos.Push, ns.pushBufferSize)
@@ -135,6 +137,12 @@ func GetUserKickTopic(uid string, svType string) string {
 // GetBindBroadcastTopic gets the topic on which bind events will be broadcasted
 func GetBindBroadcastTopic(svType string) string {
 	return fmt.Sprintf("pitaya/%s/bindings", svType)
+}
+
+// GetClosedBroadcastTopic get the topic on which session closed events will be broadcasted
+func GetClosedBroadcastTopic() string {
+	// return fmt.Sprintf("pitaya/user/%s/closed", uid)
+	return fmt.Sprintf("pitaya/session/closed")
 }
 
 // onSessionBind should be called on each session bind
@@ -175,6 +183,11 @@ func (ns *NatsRPCServer) subscribeToUserKickChannel(uid string, svType string) (
 	return sub, err
 }
 
+func (ns *NatsRPCServer) subscribeToSessionClosedChannel() error {
+	_, err := ns.conn.ChanSubscribe(GetClosedBroadcastTopic(), ns.closedChan)
+	return err
+}
+
 func (ns *NatsRPCServer) subscribeToUserMessages(uid string, svType string) (*nats.Subscription, error) {
 	sub, err := ns.conn.Subscribe(GetUserMessagesTopic(uid, svType), func(msg *nats.Msg) {
 		push := &protos.Push{}
@@ -196,6 +209,7 @@ func (ns *NatsRPCServer) handleMessages() {
 		close(ns.unhandledReqCh)
 		close(ns.subChan)
 		close(ns.bindingsChan)
+		close(ns.closedChan)
 	})()
 	maxPending := float64(0)
 	for {
@@ -317,6 +331,22 @@ func (ns *NatsRPCServer) processKick() {
 	}
 }
 
+func (ns *NatsRPCServer) processSessionClosed() {
+	for closed := range ns.closedChan {
+		c := &protos.CloseMsg{}
+		err := proto.Unmarshal(closed.Data, c)
+		if err != nil {
+			logger.Log.Errorf("error processing closed msg: %v", err)
+			continue
+		}
+		logger.Log.Debugf("Receiving a session closed event to user %s", c.GetUserId())
+		_, err = ns.pitayaServer.SessionClosed(context.Background(), c)
+		if err != nil {
+			logger.Log.Errorf("error handle session closed: %v", err)
+		}
+	}
+}
+
 // Init inits nats rpc server
 func (ns *NatsRPCServer) Init() error {
 	// TODO should we have concurrency here? it feels like we should
@@ -341,6 +371,10 @@ func (ns *NatsRPCServer) Init() error {
 	if err != nil {
 		return err
 	}
+	err = ns.subscribeToSessionClosedChannel()
+	if err != nil {
+		return err
+	}
 	// this handles remote messages
 	for i := 0; i < ns.service; i++ {
 		go ns.processMessages(i)
@@ -352,6 +386,7 @@ func (ns *NatsRPCServer) Init() error {
 	go ns.processPushes()
 	go ns.processSessionBindings()
 	go ns.processKick()
+	go ns.processSessionClosed()
 
 	return nil
 }

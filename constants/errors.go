@@ -36,6 +36,7 @@ var (
 	ErrEtcdGrantLeaseTimeout          = errors.New("timed out waiting for etcd lease grant")
 	ErrEtcdLeaseNotFound              = errors.New("etcd lease not found in group")
 	ErrFrontSessionCantPushToFront    = errors.New("frontend session can't push to front")
+	ErrFrontendCantRegister           = errors.New("only use for backend, call session.OnClose() instead")
 	ErrFrontendTypeNotSpecified       = errors.New("for using SendPushToUsers from a backend server you have to specify a valid frontendType")
 	ErrGroupAlreadyExists             = errors.New("group already exists")
 	ErrGroupNotFound                  = errors.New("group not found")

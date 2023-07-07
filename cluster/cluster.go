@@ -46,6 +46,7 @@ type RPCClient interface {
 	SendPush(userID string, frontendSv *Server, push *protos.Push) error
 	SendKick(userID string, serverType string, kick *protos.KickMsg) error
 	BroadcastSessionBind(uid string) error
+	BroadcastSessionClosed(uid string) error
 	Call(ctx context.Context, rpcType protos.RPCType, route *route.Route, session session.Session, msg *message.Message, server *Server) (*protos.Response, error)
 	interfaces.Module
 }
@@ -59,6 +60,11 @@ type SDListener interface {
 // RemoteBindingListener listens to session bindings in remote servers
 type RemoteBindingListener interface {
 	OnUserBind(uid, fid string)
+}
+
+// RemoteClosedListener listens to session closed in remote backend servers
+type RemoteClosedListener interface {
+	OnFrontendSessionClosed(uid string)
 }
 
 // InfoRetriever gets cluster info

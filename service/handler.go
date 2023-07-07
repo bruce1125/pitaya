@@ -177,6 +177,9 @@ func (h *HandlerService) Handle(conn acceptor.PlayerConn) {
 	defer func() {
 		a.GetSession().Close()
 		logger.Log.Debugf("Session read goroutine exit, SessionID=%d, UID=%s", a.GetSession().ID(), a.GetSession().UID())
+		if a.GetSession().UID() != "" {
+			h.remoteService.rpcClient.BroadcastSessionClosed(a.GetSession().UID())
+		}
 	}()
 
 	for {

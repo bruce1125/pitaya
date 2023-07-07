@@ -187,6 +187,11 @@ func (gs *GRPCClient) BroadcastSessionBind(uid string) error {
 	return nil
 }
 
+// BroadcastSessionClosed sends the session closed event to other servers that may be interested in this info
+func (gs *GRPCClient) BroadcastSessionClosed(uid string) error {
+	return constants.ErrNotImplemented
+}
+
 // SendKick sends a kick to an user
 func (gs *GRPCClient) SendKick(userID string, serverType string, kick *protos.KickMsg) error {
 	var svID string

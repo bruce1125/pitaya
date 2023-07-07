@@ -130,6 +130,19 @@ func (ns *NatsRPCClient) SendKick(userID string, serverType string, kick *protos
 	return ns.Send(topic, msg)
 }
 
+// BroadcastSessionClosed sends the binding information to other servers that may be interested in this info
+func (ns *NatsRPCClient) BroadcastSessionClosed(userID string) error {
+	msg := &protos.CloseMsg{
+		UserId: userID,
+	}
+	topic := GetClosedBroadcastTopic()
+	msgData, err := proto.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return ns.Send(topic, msgData)
+}
+
 // Call calls a method remotely
 func (ns *NatsRPCClient) Call(
 	ctx context.Context,

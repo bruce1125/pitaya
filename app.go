@@ -125,6 +125,8 @@ type Pitaya interface {
 	RegisterModuleAfter(module interfaces.Module, name string) error
 	RegisterModuleBefore(module interfaces.Module, name string) error
 	GetModule(name string) (interfaces.Module, error)
+
+	RegisterSessionClosedCallback(listener cluster.RemoteClosedListener) error
 }
 
 // App is the base app struct
