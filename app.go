@@ -355,6 +355,11 @@ func (app *App) listen() {
 		a := acc
 		go func() {
 			for conn := range a.GetConnChan() {
+				if app.sessionPool.GetSessionCount() > int64(app.config.Acceptor.MaxConnections) {
+					logger.Log.Errorf("Failed to handle new connection: pool is full")
+					conn.Close()
+					continue
+				}
 				go app.handlerService.Handle(conn)
 			}
 		}()

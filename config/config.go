@@ -38,6 +38,7 @@ type PitayaConfig struct {
 	} `mapstructure:"metrics"`
 	Acceptor struct {
 		ProxyProtocol bool `mapstructure:"proxyprotocol"`
+		MaxConnections uint16 `mapstructure:"maxconnections"`
 	} `mapstructure:"acceptor"`
 }
 
@@ -105,8 +106,10 @@ func NewDefaultPitayaConfig() *PitayaConfig {
 		},
 		Acceptor: struct {
 			ProxyProtocol bool `mapstructure:"proxyprotocol"`
+			MaxConnections uint16 `mapstructure:"maxconnections"`
 		}{
-			ProxyProtocol: false,
+			ProxyProtocol:  false,
+			MaxConnections: 9999,
 		},
 	}
 }
