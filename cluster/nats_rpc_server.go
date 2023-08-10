@@ -443,6 +443,15 @@ func (ns *NatsRPCServer) reportMetrics() {
 			if err := mr.ReportGauge(metrics.ChannelCapacity, map[string]string{"channel": "rpc_server_userpushchan"}, float64(userPushChanCapacity)); err != nil {
 				logger.Log.Warnf("failed to report userPushCh capacity: %s", err.Error())
 			}
+
+			// closedchan
+			closedChanCapacity := ns.messagesBufferSize - len(ns.closedChan)
+			if closedChanCapacity == 0 {
+				logger.Log.Warn("closedChan is at maximum capacity")
+			}
+			if err := mr.ReportGauge(metrics.ChannelCapacity, map[string]string{"channel": "rpc_server_closedchan"}, float64(closedChanCapacity)); err != nil {
+				logger.Log.Warnf("failed to report closedChan capacity: %s", err.Error())
+			}
 		}
 	}
 }
