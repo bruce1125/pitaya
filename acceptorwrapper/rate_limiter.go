@@ -83,8 +83,9 @@ func (r *RateLimiter) GetNextMessage() (msg []byte, err error) {
 
 		now := time.Now()
 		if r.shouldRateLimit(now) {
-			logger.Log.Errorf("Data=%s, Error=%s", msg, constants.ErrRateLimitExceeded)
+			logger.Log.Errorf("Remote=%s, Data=%s, Error=%s", r.RemoteAddr().String(), msg, constants.ErrRateLimitExceeded)
 			metrics.ReportExceededRateLimiting(r.reporters)
+			r.Close()
 			continue
 		}
 
