@@ -380,10 +380,15 @@ func (app *App) listen() {
 		logger.Log.Infof("Acceptor %s on addr %s is now accepting connections", reflect.TypeOf(a), a.GetAddr())
 	}
 
-	if app.serverMode == Cluster && app.server.Frontend && app.config.Session.Unique {
-		unique := mods.NewUniqueSession(app.server, app.rpcServer, app.rpcClient, app.sessionPool)
-		app.remoteService.AddRemoteBindingListener(unique)
-		app.RegisterModule(unique, "uniqueSession")
+	if app.serverMode == Cluster && app.server.Frontend {
+		if app.config.Session.Unique {
+			unique := mods.NewUniqueSession(app.server, app.rpcServer, app.rpcClient, app.sessionPool)
+			app.remoteService.AddRemoteBindingListener(unique)
+			app.RegisterModule(unique, "uniqueSession")
+		}
+
+		close := mods.NewSessionCloseBroadcast(app.rpcClient, app.sessionPool)
+		app.RegisterModule(close, "sessionCloseBroadcast")
 	}
 
 	app.startModules()
