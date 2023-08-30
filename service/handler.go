@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"net"
 
@@ -174,9 +175,15 @@ func (h *HandlerService) Handle(conn acceptor.PlayerConn) {
 	logger.Log.Debugf("New session established: %s", a.String())
 
 	// guarantee agent related resource is destroyed
+	var once = &sync.Once{}
 	defer func() {
-		a.GetSession().Close()
-		logger.Log.Debugf("Session read goroutine exit, SessionID=%d, UID=%s", a.GetSession().ID(), a.GetSession().UID())
+		once.Do(func() {
+			a.GetSession().Close()
+			logger.Log.Debugf("Session read goroutine exit, SessionID=%d, UID=%s", a.GetSession().ID(), a.GetSession().UID())
+			if a.GetSession().UID() != "" {
+				h.remoteService.rpcClient.BroadcastSessionClosed(a.GetSession().UID())
+			}
+		})
 	}()
 
 	for {

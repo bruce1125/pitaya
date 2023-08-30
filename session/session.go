@@ -439,6 +439,9 @@ func (s *sessionImpl) Bind(ctx context.Context, uid string) error {
 		}
 	}
 
+	//wait for clean
+	time.Sleep(50 * time.Millisecond)
+
 	// if code running on frontend server
 	if s.IsFrontend {
 		// If a session with the same UID already exists in this frontend server, close it
