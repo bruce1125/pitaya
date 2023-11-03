@@ -21,13 +21,11 @@
 package agent
 
 import (
-	"ccg/src/pb"
 	"context"
 	gojson "encoding/json"
 	e "errors"
 	"fmt"
 	"net"
-	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -300,16 +298,13 @@ func (a *agentImpl) Push(route string, v interface{}) error {
 		logger.Log.Debugf("Type=Push, ID=%d, UID=%s, Route=%s, Data=%dbytes",
 			a.Session.ID(), a.Session.UID(), route, len(d))
 	default:
-		bb, err := util.SerializeOrRaw(a.serializer, v)
+		logger.Log.Debugf("Type=Push, ID=%d, UID=%s, Route=%s, Data=%+v",
+			a.Session.ID(), a.Session.UID(), route, v)
+		ccg, err := util.WrapWithCcgMsg(a.serializer, v)
 		if err != nil {
 			return err
 		}
-		v = &pb.TcgMsg{
-			LogicType: reflect.TypeOf(v).Elem().Name(),
-			LogicData: bb,
-		}
-		logger.Log.Debugf("Type=Push, ID=%d, UID=%s, Route=%s, Data=%+v",
-			a.Session.ID(), a.Session.UID(), route, v)
+		v = ccg
 	}
 
 	return a.send(pendingMessage{typ: message.Push, route: route, payload: v})

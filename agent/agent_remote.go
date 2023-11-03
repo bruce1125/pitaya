@@ -115,6 +115,11 @@ func (a *Remote) Push(route string, v interface{}) error {
 	default:
 		logger.Log.Debugf("Type=Push, ID=%d, UID=%s, Route=%s, Data=%+v",
 			a.Session.ID(), a.Session.UID(), route, v)
+		ccg, err := util.WrapWithCcgMsg(a.serializer, v)
+		if err != nil {
+			return err
+		}
+		v = ccg
 	}
 
 	sv, err := a.serviceDiscovery.GetServer(a.frontendID)

@@ -21,7 +21,6 @@
 package service
 
 import (
-	"ccg/src/pb"
 	"context"
 	"errors"
 	"reflect"
@@ -88,7 +87,11 @@ func getMsgType(msgTypeIface interface{}) (message.Type, error) {
 }
 
 func serializeReturn(ser serialize.Serializer, ret interface{}) ([]byte, error) {
-	res, err := util.SerializeOrRaw(ser, ret)
+	ccg, err := util.WrapWithCcgMsg(ser, ret)
+	if err != nil {
+		return nil, err
+	}
+	res, err := util.SerializeOrRaw(ser, ccg)
 	if err != nil {
 		logger.Log.Errorf("Failed to serialize return: %s", err.Error())
 		res, err = util.GetErrorPayload(ser, err)
@@ -98,15 +101,6 @@ func serializeReturn(ser serialize.Serializer, ret interface{}) ([]byte, error) 
 		}
 	}
 
-	// logger.Log.Debugf("反射出来的名字：%s", reflect.TypeOf(ret).Elem().Name())
-	msg := &pb.TcgMsg{
-		LogicType: reflect.TypeOf(ret).Elem().Name(),
-		LogicData: res,
-	}
-	res, err = util.SerializeOrRaw(ser, msg)
-	if err != nil {
-		return nil, err
-	}
 	return res, nil
 }
 
