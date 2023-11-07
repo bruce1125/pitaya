@@ -351,6 +351,20 @@ func (app *App) listen() {
 	for i := 0; i < app.config.Concurrency.Handler.Dispatch; i++ {
 		go app.handlerService.Dispatch(i)
 	}
+
+	if app.serverMode == Cluster && app.server.Frontend {
+		if app.config.Session.Unique {
+			unique := mods.NewUniqueSession(app.server, app.rpcServer, app.rpcClient, app.sessionPool)
+			app.remoteService.AddRemoteBindingListener(unique)
+			app.RegisterModule(unique, "uniqueSession")
+		}
+
+		close := mods.NewSessionCloseBroadcast(app.rpcClient, app.sessionPool)
+		app.RegisterModule(close, "sessionCloseBroadcast")
+	}
+
+	app.startModules()
+
 	for _, acc := range app.acceptors {
 		a := acc
 		go func() {
@@ -374,26 +388,13 @@ func (app *App) listen() {
 		}()
 		logger.Log.Infof("Waiting for Acceptor %s to start on addr %s", reflect.TypeOf(a), a.GetConfiguredAddress())
 
-		for a.IsRunning() == false {
+		for !a.IsRunning() {
 		}
 
 		logger.Log.Infof("Acceptor %s on addr %s is now accepting connections", reflect.TypeOf(a), a.GetAddr())
 	}
 
-	if app.serverMode == Cluster && app.server.Frontend {
-		if app.config.Session.Unique {
-			unique := mods.NewUniqueSession(app.server, app.rpcServer, app.rpcClient, app.sessionPool)
-			app.remoteService.AddRemoteBindingListener(unique)
-			app.RegisterModule(unique, "uniqueSession")
-		}
-
-		close := mods.NewSessionCloseBroadcast(app.rpcClient, app.sessionPool)
-		app.RegisterModule(close, "sessionCloseBroadcast")
-	}
-
-	app.startModules()
-
-	logger.Log.Info("all modules started!")
+	logger.Log.Infoln("all modules started!", app.GetServerID())
 
 	app.running = true
 }
