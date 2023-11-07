@@ -352,7 +352,25 @@ func (r *RemoteService) handleRPCUser(ctx context.Context, req *protos.Request, 
 		}
 		return response
 	}
-	params := []reflect.Value{remote.Receiver, reflect.ValueOf(ctx)}
+
+	errorRespFunc := func(err error) *protos.Response {
+		response := &protos.Response{
+			Error: &protos.Error{
+				Code: e.ErrUnknownCode,
+				Msg:  err.Error(),
+			},
+		}
+		if val, ok := err.(*e.Error); ok {
+			response.Error.Code = val.Code
+			if val.Metadata != nil {
+				response.Error.Metadata = val.Metadata
+			}
+		}
+		return response
+	}
+
+	params := []reflect.Value{remote.Receiver, reflect.ValueOf(nil)}
+	var arg any
 	if remote.HasArgs {
 		arg, err := unmarshalRemoteArg(remote, req.GetMsg().GetData())
 		if err != nil {
@@ -367,21 +385,20 @@ func (r *RemoteService) handleRPCUser(ctx context.Context, req *protos.Request, 
 		params = append(params, reflect.ValueOf(arg))
 	}
 
+	ctx, arg, err := r.handlerHooks.BeforeHandler.ExecuteBeforePipeline(ctx, arg)
+	if err != nil {
+		return errorRespFunc(err)
+	}
+	params[1] = reflect.ValueOf(ctx)
+
 	ret, err := util.Pcall(remote.Method, params)
 	if err != nil {
-		response := &protos.Response{
-			Error: &protos.Error{
-				Code: e.ErrUnknownCode,
-				Msg:  err.Error(),
-			},
-		}
-		if val, ok := err.(*e.Error); ok {
-			response.Error.Code = val.Code
-			if val.Metadata != nil {
-				response.Error.Metadata = val.Metadata
-			}
-		}
-		return response
+		return errorRespFunc(err)
+	}
+
+	ret, err = r.handlerHooks.AfterHandler.ExecuteAfterPipeline(ctx, ret, err)
+	if err != nil {
+		return errorRespFunc(err)
 	}
 
 	var b []byte
