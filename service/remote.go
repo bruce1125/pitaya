@@ -63,6 +63,7 @@ type RemoteService struct {
 	server                 *cluster.Server // server obj
 	remoteBindingListeners []cluster.RemoteBindingListener
 	remoteClosedListeners  []cluster.RemoteClosedListener
+	remoteHooks            *pipeline.RemoteHooks
 	sessionPool            session.SessionPool
 	handlerPool            *HandlerPool
 	remotes                map[string]*component.Remote // all remote method
@@ -79,6 +80,7 @@ func NewRemoteService(
 	messageEncoder message.Encoder,
 	server *cluster.Server,
 	sessionPool session.SessionPool,
+	remoteHooks *pipeline.RemoteHooks,
 	handlerHooks *pipeline.HandlerHooks,
 	handlerPool *HandlerPool,
 ) *RemoteService {
@@ -99,6 +101,7 @@ func NewRemoteService(
 		remotes:                make(map[string]*component.Remote),
 	}
 
+	remote.remoteHooks = remoteHooks
 	remote.handlerHooks = handlerHooks
 
 	return remote
@@ -336,8 +339,6 @@ func processRemoteMessage(ctx context.Context, req *protos.Request, r *RemoteSer
 }
 
 func (r *RemoteService) handleRPCUser(ctx context.Context, req *protos.Request, rt *route.Route) *protos.Response {
-	response := &protos.Response{}
-
 	remote, ok := r.remotes[rt.Short()]
 	if !ok {
 		logger.Log.Warnf("pitaya/remote: %s not found", rt.Short())
@@ -353,7 +354,42 @@ func (r *RemoteService) handleRPCUser(ctx context.Context, req *protos.Request, 
 		return response
 	}
 
-	errorRespFunc := func(err error) *protos.Response {
+	var ret interface{}
+	var arg interface{}
+	var err error
+
+	if remote.HasArgs {
+		arg, err = unmarshalRemoteArg(remote, req.GetMsg().GetData())
+		if err != nil {
+			response := &protos.Response{
+				Error: &protos.Error{
+					Code: e.ErrBadRequestCode,
+					Msg:  err.Error(),
+				},
+			}
+			return response
+		}
+	}
+
+	ctx, arg, err = r.remoteHooks.BeforeHandler.ExecuteBeforePipeline(ctx, arg)
+	if err != nil {
+		response := &protos.Response{
+			Error: &protos.Error{
+				Code: e.ErrInternalCode,
+				Msg:  err.Error(),
+			},
+		}
+		return response
+	}
+
+	params := []reflect.Value{remote.Receiver, reflect.ValueOf(ctx)}
+	if remote.HasArgs {
+		params = append(params, reflect.ValueOf(arg))
+	}
+	ret, err = util.Pcall(remote.Method, params)
+
+	ret, err = r.remoteHooks.AfterHandler.ExecuteAfterPipeline(ctx, ret, err)
+	if err != nil {
 		response := &protos.Response{
 			Error: &protos.Error{
 				Code: e.ErrUnknownCode,
@@ -367,38 +403,6 @@ func (r *RemoteService) handleRPCUser(ctx context.Context, req *protos.Request, 
 			}
 		}
 		return response
-	}
-
-	params := []reflect.Value{remote.Receiver, reflect.ValueOf(nil)}
-	var arg any
-	if remote.HasArgs {
-		arg, err := unmarshalRemoteArg(remote, req.GetMsg().GetData())
-		if err != nil {
-			response := &protos.Response{
-				Error: &protos.Error{
-					Code: e.ErrBadRequestCode,
-					Msg:  err.Error(),
-				},
-			}
-			return response
-		}
-		params = append(params, reflect.ValueOf(arg))
-	}
-
-	ctx, arg, err := r.handlerHooks.BeforeHandler.ExecuteBeforePipeline(ctx, arg)
-	if err != nil {
-		return errorRespFunc(err)
-	}
-	params[1] = reflect.ValueOf(ctx)
-
-	ret, err := util.Pcall(remote.Method, params)
-	if err != nil {
-		return errorRespFunc(err)
-	}
-
-	ret, err = r.handlerHooks.AfterHandler.ExecuteAfterPipeline(ctx, ret, err)
-	if err != nil {
-		return errorRespFunc(err)
 	}
 
 	var b []byte
@@ -424,6 +428,7 @@ func (r *RemoteService) handleRPCUser(ctx context.Context, req *protos.Request, 
 		}
 	}
 
+	response := &protos.Response{}
 	response.Data = b
 	return response
 }

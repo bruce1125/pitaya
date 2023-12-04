@@ -25,10 +25,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 	"time"
-	"net"
 
 	"github.com/nats-io/nuid"
 
