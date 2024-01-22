@@ -523,7 +523,7 @@ func (r *RemoteService) Docs(getPtrNames bool) (map[string]interface{}, error) {
 	return docgenerator.RemotesDocs(r.server.Type, r.services, getPtrNames)
 }
 
-// AddRemoteBindingListener adds a listener
+// AddRemoteClosedListener adds a listener
 func (r *RemoteService) AddRemoteClosedListener(listener cluster.RemoteClosedListener) {
 	r.remoteClosedListeners = append(r.remoteClosedListeners, listener)
 }

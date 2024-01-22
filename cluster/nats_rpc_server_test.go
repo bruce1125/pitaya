@@ -132,8 +132,10 @@ func TestNatsRPCServerGetUnhandledRequestsChannel(t *testing.T) {
 	cfg := config.NewDefaultNatsRPCServerConfig()
 	sv := getServer()
 	n, _ := NewNatsRPCServer(*cfg, sv, nil, nil, nil)
-	assert.NotNil(t, n.GetUnhandledRequestsChannel())
-	assert.IsType(t, make(chan *protos.Request), n.GetUnhandledRequestsChannel())
+	for i := 0; i < n.service; i++ {
+		assert.NotNil(t, n.GetUnhandledRequestsChannel(i))
+		assert.IsType(t, make(chan *protos.Request), n.GetUnhandledRequestsChannel(i))
+	}
 }
 
 func TestNatsRPCServerGetBindingsChannel(t *testing.T) {
@@ -371,7 +373,7 @@ func TestNatsRPCServerInit(t *testing.T) {
 		t.Run(table.name, func(t *testing.T) {
 			c := make(chan *nats.Msg)
 			rpcServer.conn.ChanSubscribe(table.req.Msg.Reply, c)
-			rpcServer.unhandledReqCh <- table.req
+			rpcServer.enqueueRequest(table.req)
 			r := helpers.ShouldEventuallyReceive(t, c).(*nats.Msg)
 			assert.NotNil(t, r.Data)
 		})
